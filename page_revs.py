@@ -21,6 +21,7 @@ class PageDiff:
         self.content = json_diff["slots"]["main"]["content"]
         self.diff = None
         self.rollbacked = False
+        self.rollbacked_by = None
         self.size = json_diff["size"]
         self.size_delta = None
 
@@ -33,7 +34,8 @@ class PageDiff:
     def __repr__(self):
         return (
             f"<Diff {self.timestamp}, User {self.diff_author}, "
-            f"Delta {self.str_size_delta()}{', Patrolled' if self.patrolled else ''}{', Rollbacked' if self.rollbacked else ''}>"
+            f"Delta {self.str_size_delta()}{', Patrolled' if self.patrolled else ''}"
+            f"{(f', Rollbacked by {self.rollbacked_by}') if self.rollbacked else ''}>"
         )
 
 
@@ -55,7 +57,7 @@ class DiffChain:
             else:
                 self.diffs[i].size_delta = self.diffs[i].size - self.diffs[i + 1].size
 
-    def diff_based_rollback_marking(self, ignore_patrolled: bool = True) -> None:
+    def diff_based_rollback_marking(self) -> None:
         content = []
         rollbacked = []
         l = len(self.diffs)
@@ -65,11 +67,11 @@ class DiffChain:
             for j in range(i - 1, -1, -1):
                 if content[i] == content[j]:
                     for k in range(j + 1, i):
-                        rollbacked.append(k)
-        for idx in rollbacked:
-            if ignore_patrolled and self.diffs[l - 1 - idx].patrolled:
-                continue
-            self.diffs[l - 1 - idx].rollbacked = True
+                        self.diffs[l - 1 - k].rollbacked = True
+                        self.diffs[l - 1 - k].rollbacked_by = self.diffs[
+                            l - 1 - i
+                        ].diff_author
+                    break
 
     def compute_diffs_for_filtered(self):
         differ = Differ()
