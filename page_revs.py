@@ -2,9 +2,9 @@
 Get the revision chain of a given page, label edits patrolled / rollbacked, compute diffs for selected revisions
 """
 
-import requests
 import typing as tp
 from difflib import Differ
+import aiohttp
 
 RUWIKT_API: str = "https://ru.wiktionary.org/w/api.php"
 
@@ -18,6 +18,12 @@ class PageDiff:
             and "tags" in json_diff["flagged"]
             and json_diff["flagged"]["tags"]["accuracy"] == 1
         )
+        self.patrolled_by = None
+        if self.patrolled:
+            self.patrolled_by = json_diff["flagged"]["user"]
+        self.revid = json_diff["revid"]
+        self.minor = json_diff["minor"]
+        self.summary = json_diff["comment"]
         self.content = json_diff["slots"]["main"]["content"]
         self.diff = None
         self.rollbacked = False
@@ -59,7 +65,6 @@ class DiffChain:
 
     def diff_based_rollback_marking(self) -> None:
         content = []
-        rollbacked = []
         l = len(self.diffs)
         for i in range(len(self.diffs) - 1, -1, -1):
             content.append(self.diffs[i].content)
@@ -101,7 +106,7 @@ def dropout_neutral_lines(diff: tp.List[str]) -> tp.List[str]:
     return [line for line in diff if line.startswith("+ ") or line.startswith("- ")]
 
 
-def get_diffs_from_page(
+async def get_diffs_from_page(
     page_name: str, diff_computing_selector: tp.Callable
 ) -> DiffChain:
     params = {
@@ -109,21 +114,23 @@ def get_diffs_from_page(
         "format": "json",
         "prop": "revisions",
         "titles": page_name,
-        "formatversion": "2",
-        "rvprop": "flagged|flags|user|timestamp|size|ids|content",
+        "formatversion": 2,
+        "rvprop": "flagged|flags|user|timestamp|size|ids|content|comment",
         "rvslots": "main",
-        "rvlimit": "500",
-        "wrappedhtml": "1",
+        "rvlimit": 500,
+        "wrappedhtml": 1,
     }
-    response = requests.get(RUWIKT_API, params=params)
-    result = DiffChain(diff_computing_selector)
-    result.extend(
-        [
-            PageDiff(json_diff)
-            for json_diff in response.json()["query"]["pages"][0]["revisions"]
-        ]
-    )
-    return result
+    async with aiohttp.ClientSession() as session:
+        async with session.get(RUWIKT_API, params=params) as response:
+            result = DiffChain(diff_computing_selector)
+            resp = await response.json()
+            result.extend(
+                [
+                    PageDiff(json_diff)
+                    for json_diff in resp["query"]["pages"][0]["revisions"]
+                ]
+            )
+            return result
 
 
 if __name__ == "__main__":
