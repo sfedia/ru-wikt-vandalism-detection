@@ -20,6 +20,9 @@ RUWIKT_API: str = "https://ru.wiktionary.org/w/api.php"
 CATEGORY_NAME = "Категория:Русский язык"
 IP_REGEX = "^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)(\.(?!$)|$)){4}$"
 
+good_rows = []
+bad_rows = []
+
 class PageDiff:
     def __init__(self, json_diff):
         self.timestamp = json_diff["timestamp"]
@@ -175,8 +178,6 @@ async def process_page(session, page_name, writer_lock):
         logger.info(f"Processing page: {page_name}")
         chain = await get_diffs_from_page(session, page_name, lambda diff: True)
         rows = []
-        good_rows = []
-        bad_rows = []
         for diff in chain.get(lambda d: True):
             rows.append({
                 "page": page_name,
@@ -188,12 +189,12 @@ async def process_page(session, page_name, writer_lock):
                 "diff": "\n".join(dropout_neutral_lines(diff.diff)) if diff.diff else ""
             })
             if re.search(IP_REGEX,diff.diff_author):
-                if diff.patrolled == True and len(good_rows)>100:
-                    good_rows.append(row)
-                elif row.rollbacked == True and len(bad_rows)>100:
-                    bad_rows.append(row)
+                if diff.patrolled and len(good_rows)>100:
+                    good_rows.append(diff)
+                elif diff.rollbacked and len(bad_rows)>100:
+                    bad_rows.append(diff)
         logger.info(f"Processed {len(rows)} diffs for page: {page_name}")
-        return [rows,good_rows,bad_rows]
+        return rows
     except Exception as e:
         logger.error(f"Error fetching diffs for page {page_name}: {e}")
         return []
@@ -207,8 +208,8 @@ async def main():
         pages = await get_category_members(session, CATEGORY_NAME)
         print(f"Found {len(pages)} pages in the category.")
 
-        good_rows=[]
-        bad_rows=[]
+        #good_rows=[]
+        #bad_rows=[]
 
         with open("diffs.csv", "w", newline='', encoding="utf-8") as csvfile,open("diffs2.csv", "w", newline='', encoding="utf-8") as csvfile2:
             fieldnames = ["page", "timestamp", "user", "size_delta", "patrolled", "rollbacked", "diff"]
@@ -219,19 +220,22 @@ async def main():
 
             tasks = [process_page(session, page_name, None) for page_name in pages]
             for result in tqdm_asyncio.as_completed(tasks, desc="Fetching pages", total=len(tasks)):
-                outcome = await result
-                print("#######\n")
-                print(outcome)
-                print("\n#######")
-                rows = outcome[0]
-                good_rows = outcome[1]
-                bad_rows = outcome[2]
+                rows = await result
+                #print("#######\n")
+                #print(outcome)
+                #print("\n#######")
+                #try:
+                    #rows = outcome[0]
+                    #good_rows = outcome[1]
+                    #bad_rows = outcome[2]
                 for row in rows:
                     writer.writerow(row)
-                rang = min(len(good_rows),len(bad_rows),100)
-                for k in range(rang):
-                    writer2.writerow(good_rows[k])
-                    writer2.writerow(bad_rows[k])
+                #except IndexError:
+                #    print("Error: outcome empty")
+            rang = min(len(good_rows),len(bad_rows),100)
+            for k in range(rang):
+                writer2.writerow(good_rows[k])
+                writer2.writerow(bad_rows[k])
 
 
         print("CSV writing completed.")
