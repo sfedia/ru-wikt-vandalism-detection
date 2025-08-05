@@ -5,7 +5,7 @@ import csv
 import os
 
 DATA_FILE_NAME = "data/diffs.csv"
-
+IP_REGEX = "[0-9]+\.0-9]+\.0-9]+\.0-9]+"
 async def parse(article_name):
     result = await get_diffs_from_page(article_name, lambda diff: diff.rollbacked or diff.patrolled)
     file_exists = os.path.isfile(DATA_FILE_NAME)
