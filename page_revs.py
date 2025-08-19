@@ -5,8 +5,11 @@ Get the revision chain of a given page, label edits patrolled / rollbacked, comp
 import typing as tp
 from difflib import Differ
 import aiohttp
+import time
+import asyncio
 
 RUWIKT_API: str = "https://ru.wiktionary.org/w/api.php"
+USER_AGENT: str = "ru-wikt-vandalism-bot/0.1 (https://github.com/sfedia/ru-wikt-vandalism-detection)"
 
 
 class PageDiff:
@@ -133,10 +136,14 @@ async def get_diffs_from_page(
             return result
         
 async def get_category_members(session: aiohttp.ClientSession, category_name: str) -> tp.List[str]:
-    """Fetch all page titles in the given category."""
+    """Fetch all page titles in the given category with retries, backoff, and progress timing."""
     print("Fetching category members...")
     members = []
     cmcontinue = None
+
+    total_start = time.perf_counter()
+    last_checkpoint = total_start
+
     while True:
         params = {
             "action": "query",
@@ -148,20 +155,51 @@ async def get_category_members(session: aiohttp.ClientSession, category_name: st
         if cmcontinue:
             params["cmcontinue"] = cmcontinue
 
-        async with session.get(RUWIKT_API, params=params) as response:
-            data = await response.json()
-            if "query" not in data or "categorymembers" not in data["query"]:
-                print(f"Unexpected response: {data}")
-                break
-            members.extend(page["title"] for page in data["query"]["categorymembers"])
+        # Retry loop
+        for attempt in range(5):
+            try:
+                async with session.get(
+                    RUWIKT_API,
+                    params=params,
+                    headers={"User-Agent": USER_AGENT},
+                ) as response:
+                    if response.status == 429:
+                        wait_time = 2 ** attempt
+                        print(f"Rate limited (429). Waiting {wait_time}s before retry...")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    response.raise_for_status()
+                    data = await response.json()
+                    break
+            except aiohttp.ClientError as e:
+                wait_time = 2 ** attempt
+                print(f"Request failed ({e}). Retrying in {wait_time}s...")
+                await asyncio.sleep(wait_time)
+        else:
+            raise RuntimeError("Max retries exceeded while fetching category members")
 
-            if "continue" in data:
-                cmcontinue = data["continue"]["cmcontinue"]
-            else:
-                break
-    print(f"Found {len(members)} category members.")
+        if "query" not in data or "categorymembers" not in data["query"]:
+            print(f"Unexpected response: {data}")
+            break
+
+        members.extend(page["title"] for page in data["query"]["categorymembers"])
+
+        if len(members) % 1000 == 0:
+            now = time.perf_counter()
+            batch_time = now - last_checkpoint
+            total_time = now - total_start
+            print(f"Processed {len(members)} pages "
+                  f"(last 1000 took {batch_time:.2f}s, total {total_time:.2f}s)")
+            last_checkpoint = now
+
+        if "continue" in data:
+            cmcontinue = data["continue"]["cmcontinue"]
+        else:
+            break
+
+    total_time = time.perf_counter() - total_start
+    print(f"Found {len(members)} category members in {total_time:.2f}s.")
     return members
-
 
 if __name__ == "__main__":
     chain = get_diffs_from_page("собака", lambda diff: diff.rollbacked)
