@@ -9,6 +9,9 @@ import time
 import asyncio
 import csv
 import os
+import ssl
+
+import certifi
 
 CATEGORY_NAME = "Категория:Русский язык"
 PAGES_TRAIN_CSV = "data/pages_train.csv"
