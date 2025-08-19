@@ -7,7 +7,12 @@ from difflib import Differ
 import aiohttp
 import time
 import asyncio
+import csv
+import os
 
+CATEGORY_NAME = "Категория:Русский язык"
+PAGES_TRAIN_CSV = "data/pages_train.csv"
+PAGES_TEST_CSV = "data/pages_test.csv"
 RUWIKT_API: str = "https://ru.wiktionary.org/w/api.php"
 USER_AGENT: str = "ru-wikt-vandalism-bot/0.1 (https://github.com/sfedia/ru-wikt-vandalism-detection)"
 
@@ -144,7 +149,7 @@ async def get_category_members(session: aiohttp.ClientSession, category_name: st
     total_start = time.perf_counter()
     last_checkpoint = total_start
 
-    while True:
+    while True: # do we need them ALL for training/testing?
         params = {
             "action": "query",
             "format": "json",
@@ -201,9 +206,28 @@ async def get_category_members(session: aiohttp.ClientSession, category_name: st
     print(f"Found {len(members)} category members in {total_time:.2f}s.")
     return members
 
+async def export_category_pages_to_csv():
+    """Fetch all pages in CATEGORY_NAME, shuffle, and save to two CSV files."""
+    os.makedirs("data", exist_ok=True)
+    ssl_context = ssl.create_default_context(cafile=certifi.where())
+    connector = aiohttp.TCPConnector(ssl=ssl_context)
+    headers = {"User-Agent": USER_AGENT}
+    async with aiohttp.ClientSession(connector=connector, headers=headers) as session:
+        pages = await get_category_members(session, CATEGORY_NAME)
+        print(f"Fetched {len(pages)} pages from category.")
+        from random import shuffle
+        shuffle(pages)
+        with open(PAGES_TRAIN_CSV, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["page_title"])
+            for page in pages[:25000]:
+                writer.writerow([page])
+        with open(PAGES_TEST_CSV, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["page_title"])
+            for page in pages[25000:35000]:
+                writer.writerow([page])
+        print(f"Exported 25000 pages to {PAGES_TRAIN_CSV} and 10000 pages to {PAGES_TEST_CSV}.")
+
 if __name__ == "__main__":
-    chain = get_diffs_from_page("собака", lambda diff: diff.rollbacked)
-    for rbk in chain.get(lambda diff: diff.rollbacked):
-        print(rbk)
-        print(dropout_neutral_lines(rbk.diff))
-        print()
+    asyncio.run(export_category_pages_to_csv())
