@@ -118,7 +118,9 @@ def dropout_neutral_lines(diff: tp.List[str]) -> tp.List[str]:
 
 
 async def get_diffs_from_page(
-    page_name: str, diff_computing_selector: tp.Callable
+    session: aiohttp.ClientSession,
+    page_name: str,
+    diff_computing_selector: tp.Callable
 ) -> DiffChain:
     params = {
         "action": "query",
@@ -131,18 +133,18 @@ async def get_diffs_from_page(
         "rvlimit": 500,
         "wrappedhtml": 1,
     }
-    async with aiohttp.ClientSession() as session:
-        async with session.get(RUWIKT_API, params=params) as response:
-            result = DiffChain(diff_computing_selector)
-            resp = await response.json()
-            result.extend(
-                [
-                    PageDiff(json_diff)
-                    for json_diff in resp["query"]["pages"][0]["revisions"]
-                ]
-            )
-            return result
-        
+    async with session.get(RUWIKT_API, params=params) as response:
+        result = DiffChain(diff_computing_selector)
+        resp = await response.json()
+        result.extend(
+            [
+                PageDiff(json_diff)
+                for json_diff in resp["query"]["pages"][0]["revisions"]
+            ]
+        )
+        return result
+
+
 async def get_category_members(session: aiohttp.ClientSession, category_name: str) -> tp.List[str]:
     """Fetch all page titles in the given category with retries, backoff, and progress timing."""
     print("Fetching category members...")
