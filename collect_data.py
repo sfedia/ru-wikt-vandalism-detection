@@ -1,5 +1,5 @@
 import csv
-from page_revs import get_diffs_from_page, dropout_neutral_lines, PAGES_TRAIN_CSV, PAGES_TEST_CSV
+from page_revs import get_diffs_from_page, dropout_neutral_lines, PAGES_TRAIN_CSV, PAGES_TEST_CSV, PAGES_VAL_CSV
 import asyncio
 from tqdm.asyncio import tqdm
 import ssl
@@ -8,8 +8,9 @@ import certifi
 import jsonlines
 import random
 
-TRAIN_FILE_NAME = "data/diffs_train.jsonl"
-TEST_FILE_NAME = "data/diffs_test.jsonl"
+TRAIN_FILE_NAME = "data/diffs_train.json"
+TEST_FILE_NAME = "data/diffs_test.json"
+VAL_FILE_NAME = "data/diffs_val.json"
 CATEGORY_NAME = "Категория:Русский язык"
 USER_AGENT = "ru-wikt-vandalism-bot/0.1 (https://github.com/sfedia/ru-wikt-vandalism-detection)"
 
@@ -32,9 +33,9 @@ async def parse(session, article_name):
                 "size": rbk.size,
             }
             if rbk.patrolled:
-                good_diffs.append({"messages": [{"role":"editor","diff":row}, {"role": "admin", "good": True}]})
+                good_diffs.append({"text": row, "label": 1})
             else:
-                bad_diffs.append({"messages": [{"role":"editor","diff":row}, {"role": "admin", "good": False}]})
+                good_diffs.append({"text": row, "label": 0})
         return good_diffs, bad_diffs
     except aiohttp.ClientResponseError as e:
         if e.status == 429:
@@ -81,6 +82,7 @@ async def main():
     headers = {"User-Agent": USER_AGENT}
     async with aiohttp.ClientSession(connector=connector, headers=headers) as session:
         await make_dataset(session, PAGES_TRAIN_CSV, TRAIN_FILE_NAME)
+        await make_dataset(session, PAGES_VAL_CSV, VAL_FILE_NAME)
         await make_dataset(session, PAGES_TEST_CSV, TEST_FILE_NAME)
 
 if __name__ == "__main__":

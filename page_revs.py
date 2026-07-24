@@ -16,6 +16,7 @@ import certifi
 CATEGORY_NAME = "Категория:Русский язык"
 PAGES_TRAIN_CSV = "data/pages_train.csv"
 PAGES_TEST_CSV = "data/pages_test.csv"
+PAGES_VAL_CSV = "data/pages_val.csv"
 RUWIKT_API: str = "https://ru.wiktionary.org/w/api.php"
 USER_AGENT: str = "ru-wikt-vandalism-bot/0.1 (https://github.com/sfedia/ru-wikt-vandalism-detection)"
 
@@ -230,9 +231,14 @@ async def export_category_pages_to_csv():
         with open(PAGES_TEST_CSV, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(["page_title"])
-            for page in pages[25000:35000]:
+            for page in pages[25000:27500]:
                 writer.writerow([page])
-        print(f"Exported 25000 pages to {PAGES_TRAIN_CSV} and 10000 pages to {PAGES_TEST_CSV}.")
+        with open(PAGES_VAL_CSV, "w", newline="", encoding="utf-8") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(["page_title"])
+                    for page in pages[27500:30000]:
+                        writer.writerow([page])
+        print(f"Exported 25000 pages to {PAGES_TRAIN_CSV} and 2500 pages to {PAGES_VAL_CSV} and 2500 pages to {PAGES_TEST_CSV}.")
 
 if __name__ == "__main__":
     asyncio.run(export_category_pages_to_csv())
