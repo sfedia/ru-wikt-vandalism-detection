@@ -25,6 +25,8 @@ class PageDiff:
     def __init__(self, json_diff):
         self.timestamp = json_diff["timestamp"]
         self.diff_author = json_diff["user"]
+        if not self.diff_author:
+            self.diff_author = "Erased"
         self.patrolled = (
             "flagged" in json_diff
             and "tags" in json_diff["flagged"]
@@ -37,11 +39,14 @@ class PageDiff:
         self.minor = json_diff["minor"]
         self.summary = json_diff["comment"]
         self.content = json_diff["slots"]["main"]["content"]
+        if not self.content:
+            self.content = "Rollback or Content Erased"
         self.diff = None
         self.rollbacked = False
         self.rollbacked_by = None
         self.size = json_diff["size"]
         self.size_delta = None
+
 
     def str_size_delta(self) -> str:
         if self.size_delta > 0:

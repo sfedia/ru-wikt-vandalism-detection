@@ -8,9 +8,9 @@ import certifi
 import jsonlines
 import random
 
-TRAIN_FILE_NAME = "data/diffs_train.json"
-TEST_FILE_NAME = "data/diffs_test.json"
-VAL_FILE_NAME = "data/diffs_val.json"
+TRAIN_FILE_NAME = "data/diffs_train.jsonl"
+TEST_FILE_NAME = "data/diffs_test.jsonl"
+VAL_FILE_NAME = "data/diffs_val.jsonl"
 CATEGORY_NAME = "Категория:Русский язык"
 USER_AGENT = "ru-wikt-vandalism-bot/0.1 (https://github.com/sfedia/ru-wikt-vandalism-detection)"
 
@@ -24,7 +24,6 @@ async def parse(session, article_name):
             row = {
                 "article": article_name,
                 "author": rbk.diff_author,
-                "revid": rbk.revid,
                 "timestamp": rbk.timestamp,
                 "minor": rbk.minor,
                 "summary": rbk.summary,
@@ -32,10 +31,11 @@ async def parse(session, article_name):
                 "size_delta": rbk.size_delta,
                 "size": rbk.size,
             }
+            
             if rbk.patrolled:
                 good_diffs.append({"text": row, "label": 1})
-            else:
-                good_diffs.append({"text": row, "label": 0})
+            elif rbk.rollbacked:
+                bad_diffs.append({"text": row, "label": 0})
         return good_diffs, bad_diffs
     except aiohttp.ClientResponseError as e:
         if e.status == 429:
@@ -43,6 +43,7 @@ async def parse(session, article_name):
             await asyncio.sleep(10)
             return await parse(session, article_name)
         raise
+
 
 async def make_dataset(session, csv_path, file_name):
     good_diffs = []
@@ -57,9 +58,9 @@ async def make_dataset(session, csv_path, file_name):
         async with semaphore:
             try:
                 return await parse(session, page)
-            except KeyError:
-                print(f"KeyError on page: {page}")
-                return [], []
+            #except KeyError:
+            #    print(f"KeyError on page: {page}")
+            #    return [], []
             except Exception as e:
                 print(f"Error on page {page}: {e}")
                 return [], []
@@ -72,9 +73,8 @@ async def make_dataset(session, csv_path, file_name):
         bad_diffs.extend(b)
 
     with jsonlines.open(file_name, mode="w") as writer:
-        for k in range(min(len(good_diffs), len(bad_diffs))):
-            writer.write(good_diffs[k])
-            writer.write(bad_diffs[k])
+        for item in good_diffs + bad_diffs:
+            writer.write(item)
 
 async def main():
     ssl_context = ssl.create_default_context(cafile=certifi.where())
