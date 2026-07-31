@@ -31,11 +31,11 @@ async def parse(session, article_name):
                 "size_delta": rbk.size_delta,
                 "size": rbk.size,
             }
-            
+
             if rbk.patrolled:
-                good_diffs.append({"text": row, "label": 1})
-            elif rbk.rollbacked:
-                bad_diffs.append({"text": row, "label": 0})
+                good_diffs.append({"contents": [{"role": "user", "parts": [{"text": f"Classify this edit as 'good' or 'bad': '{row}'"}]}, {"role": "model", "parts": [{"text": "good"}]}]})
+            if rbk.rollbacked:
+                bad_diffs.append({"contents": [{"role": "user", "parts": [{"text": f"Classify this edit as 'good' or 'bad': '{row}'"}]}, {"role": "model", "parts": [{"text": "bad"}]}]})
         return good_diffs, bad_diffs
     except aiohttp.ClientResponseError as e:
         if e.status == 429:

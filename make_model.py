@@ -3,10 +3,11 @@ import os
 
 TRAIN_FILE_NAME = "data/diffs_train.jsonl"
 TEST_FILE_NAME = "data/diffs_test.jsonl"
+VAL_FILE_NAME = "data/diffs_val.jsonl"
 
 my_model = "mistral-small-latest"
 
-api_key = os.environ["MISTRAL_API_KEY"]
+api_key = os.environ["GEMINI_API_KEY"]
 
 client = Mistral(api_key=api_key)
 
