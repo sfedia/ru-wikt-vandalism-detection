@@ -12,6 +12,15 @@ then
     python make_model.py
 in terminal
 """
+"""
+SupervisedTuningJob created. Resource name: projects/161690321029/locations/europe-west1/tuningJobs/6528943957479522304
+To use this SupervisedTuningJob in another session:
+tuning_job = sft.SupervisedTuningJob('projects/161690321029/locations/europe-west1/tuningJobs/6528943957479522304')
+View Tuning Job:
+https://console.cloud.google.com/vertex-ai/generative/language/locations/europe-west1/tuning/tuningJob/6528943957479522304?project=161690321029
+
+
+"""
 
 PROJECT_ID = "gen-lang-client-0717941928"
 vertexai.init(project=PROJECT_ID, location="europe-west1")
