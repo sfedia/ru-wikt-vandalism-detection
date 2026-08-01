@@ -1,37 +1,34 @@
-from mistralai import Mistral
-import os
+import time
+import vertexai
+from vertexai.tuning import sft
 
-TRAIN_FILE_NAME = "data/diffs_train.jsonl"
-TEST_FILE_NAME = "data/diffs_test.jsonl"
-VAL_FILE_NAME = "data/diffs_val.jsonl"
+"""
+Use 
+    gcloud auth application-default login
+to authenticate
+Run:
+    conda activate vertex-tuning   
+then
+    python make_model.py
+in terminal
+"""
 
-my_model = "mistral-small-latest"
+PROJECT_ID = "gen-lang-client-0717941928"
+vertexai.init(project=PROJECT_ID, location="europe-west1")
 
-api_key = os.environ["GEMINI_API_KEY"]
-
-client = Mistral(api_key=api_key)
-
-diffs_train = client.files.upload(file={
-    "file_name": TRAIN_FILE_NAME,
-    "content": open(TRAIN_FILE_NAME, "rb"),
-})
-diffs_test = client.files.upload(file={
-    "file_name": TEST_FILE_NAME,
-    "content": open(TEST_FILE_NAME, "rb"),
-})
-
-created_jobs = client.fine_tuning.jobs.create(
-    model=my_model,
-    training_files=[{"file_id": diffs_train.id, "weight": 1}],
-    validation_files=[diffs_test.id],
-    hyperparameters={
-        "training_steps": 10,
-        "learning_rate":0.0001
-    },
-    auto_start=False
+tuning_job = sft.train(
+    source_model='gemini-2.5-flash',
+    train_dataset='gs://ru-wiktionary-diffs/diffs_train.jsonl',
+    validation_dataset='gs://ru-wiktionary-diffs/diffs_val.jsonl',
+    epochs=3,
+    learning_rate_multiplier=1.0,
+    tuned_model_display_name='edit-classifier',
 )
 
-client.fine_tuning.jobs.start(job_id = created_jobs.id)
+while not tuning_job.has_ended:
+    time.sleep(60)
+    tuning_job.refresh()
+    print("Tuning in progress...")
 
-created_jobs
-
+print("Tuned Model Name:", tuning_job.tuned_model_name)
+print("Endpoint Name:", tuning_job.tuned_model_endpoint_name)
